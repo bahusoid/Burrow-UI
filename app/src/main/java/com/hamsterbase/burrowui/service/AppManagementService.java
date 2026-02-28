@@ -1,13 +1,17 @@
 package com.hamsterbase.burrowui.service;
 
+import android.annotation.TargetApi;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 
@@ -24,18 +28,25 @@ public class AppManagementService {
     private final Context context;
     private final Map<String, Drawable> iconCache;
     private final Map<String, UserHandle> userCache;
+    // LauncherApps and UserManager are only available from API 21 (Lollipop)
     private final LauncherApps launcherApps;
     private final UserManager userManager;
     private final PackageManager packageManager;
 
+    @SuppressWarnings("deprecation")
     private AppManagementService(Context context) {
         this.context = context.getApplicationContext();
         this.iconCache = new HashMap<>();
         this.userCache = new HashMap<>();
-        this.launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
-        this.userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
         this.packageManager = context.getPackageManager();
-        initUserCache();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            this.launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
+            this.userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+            initUserCache();
+        } else {
+            this.launcherApps = null;
+            this.userManager = null;
+        }
     }
 
     public static synchronized AppManagementService getInstance(Context context) {
@@ -45,6 +56,7 @@ public class AppManagementService {
         return instance;
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void initUserCache() {
         List<UserHandle> users = userManager.getUserProfiles();
         for (UserHandle user : users) {
@@ -53,6 +65,14 @@ public class AppManagementService {
     }
 
     public List<AppInfo> listApps() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            return listAppsWithLauncherApps();
+        }
+        return listAppsLegacy();
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private List<AppInfo> listAppsWithLauncherApps() {
         List<AppInfo> appInfoList = new ArrayList<>();
         List<UserHandle> users = userManager.getUserProfiles();
 
@@ -75,6 +95,20 @@ public class AppManagementService {
         return appInfoList;
     }
 
+    private List<AppInfo> listAppsLegacy() {
+        List<AppInfo> appInfoList = new ArrayList<>();
+        Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
+        mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> resolveInfoList = packageManager.queryIntentActivities(mainIntent, 0);
+        for (ResolveInfo resolveInfo : resolveInfoList) {
+            String label = resolveInfo.activityInfo.loadLabel(packageManager).toString();
+            String packageName = resolveInfo.activityInfo.packageName;
+            String componentName = new ComponentName(packageName, resolveInfo.activityInfo.name).flattenToString();
+            appInfoList.add(new AppInfo(label, packageName, null, componentName));
+        }
+        return appInfoList;
+    }
+
     public Drawable getIcon(String packageName, String userId) {
         String cacheKey = packageName + (userId != null ? ":" + userId : "");
 
@@ -83,10 +117,10 @@ public class AppManagementService {
             return cachedIcon;
         }
 
-        return loadIconFromLauncherApps(packageName, userId);
+        return loadIcon(packageName, userId);
     }
 
-    private Drawable loadIconFromLauncherApps(String packageName, String userId) {
+    private Drawable loadIcon(String packageName, String userId) {
         if (userId == null) {
             try {
                 return packageManager.getApplicationIcon(packageName);
@@ -94,6 +128,14 @@ public class AppManagementService {
                 return null;
             }
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || launcherApps == null) {
+            return null;
+        }
+        return loadIconForWorkProfile(packageName, userId);
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private Drawable loadIconForWorkProfile(String packageName, String userId) {
         UserHandle userHandle = userCache.get(userId);
         if (userHandle == null) {
             return null;
@@ -155,6 +197,15 @@ public class AppManagementService {
     }
 
     public void launchApp(AppInfo app) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            launchAppWithLauncherApps(app);
+        } else {
+            launchAppLegacy(app);
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void launchAppWithLauncherApps(AppInfo app) {
         UserHandle currentUser = android.os.Process.myUserHandle();
         if (app.getUserId() != null) {
             currentUser = userCache.get(app.getUserId());
@@ -165,6 +216,17 @@ public class AppManagementService {
                 launcherApps.startMainActivity(activityInfo.getComponentName(), currentUser, null, null);
                 break;
             }
+        }
+    }
+
+    private void launchAppLegacy(AppInfo app) {
+        ComponentName componentName = ComponentName.unflattenFromString(app.getComponentName());
+        if (componentName != null) {
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.setComponent(componentName);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
         }
     }
 }

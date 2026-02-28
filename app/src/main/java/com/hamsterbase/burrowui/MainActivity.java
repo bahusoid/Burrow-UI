@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.BitmapFactory;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -14,7 +15,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.ImageView;
+import android.util.Log;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -22,19 +23,23 @@ import android.widget.TextView;
 import com.hamsterbase.burrowui.service.AppInfo;
 import com.hamsterbase.burrowui.service.AppManagementService;
 
+import java.io.File;
+import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
 
-    private TextView timeTextView;
+    private static final String TAG = "MainActivity";
     private TextView dateTextView;
     private TextView amPmTextView;
     private LinearLayout appLinearLayout;
-    private List<AppInfo> selectedApps;
+    private List<AppInfo> allApps;
+    private List<SettingsManager.SelectedItem> selectedItems;
     private SettingsManager settingsManager;
     private AppManagementService appManagementService;
     private Handler handler;
@@ -200,24 +205,23 @@ public class MainActivity extends Activity {
     }
 
     private void loadApps() {
-        List<AppInfo> allApps = appManagementService.listApps();
-        selectedApps = new ArrayList<>();
-        List<SettingsManager.SelectedItem> selectedItems = settingsManager.getSelectedItems();
-        for (SettingsManager.SelectedItem item : selectedItems) {
-            if (item.getType().equals("application")) {
-                for (AppInfo app : allApps) {
-                    if (appManagementService.isSelectItemEqualWith(app, item)) {
-                        selectedApps.add(app);
-                    }
-                }
-            }
-        }
+        allApps = appManagementService.listApps();
+        selectedItems = settingsManager.getSelectedItems();
     }
 
     private void displaySelectedApps() {
         appLinearLayout.removeAllViews();
-        for (AppInfo app : selectedApps) {
-            addAppToLayout(app);
+        for (SettingsManager.SelectedItem item : selectedItems) {
+            if (item.getType().equals("application")) {
+                for (AppInfo app : allApps) {
+                    if (appManagementService.isSelectItemEqualWith(app, item)) {
+                        addAppToLayout(app);
+                        break;
+                    }
+                }
+            } else if (item.getType().equals("shortcut")) {
+                addShortcutToLayout(item);
+            }
         }
 
         if (settingsManager.isShowSettingsIcon()) {
@@ -232,7 +236,50 @@ public class MainActivity extends Activity {
 
         iconView.setImageDrawable(appManagementService.getIcon(app.getPackageName(), app.getUserId()));
         nameView.setText(app.getLabel());
-        appView.setOnClickListener(v -> appManagementService.launchApp(app));
+        appView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                appManagementService.launchApp(app);
+            }
+        });
+        appLinearLayout.addView(appView);
+    }
+
+    private void addShortcutToLayout(final SettingsManager.SelectedItem shortcutItem) {
+        Map<String, String> meta = shortcutItem.getMeta();
+        final String name = meta.get("name");
+        final String intentUri = meta.get("intent");
+        String iconPath = meta.get("iconPath");
+
+        if (name == null || intentUri == null) {
+            return;
+        }
+
+        View appView = getLayoutInflater().inflate(R.layout.app_item, null);
+        ImageView iconView = appView.findViewById(R.id.appIcon);
+        TextView nameView = appView.findViewById(R.id.appName);
+
+        nameView.setText(name);
+        if (iconPath != null) {
+            File iconFile = new File(iconPath);
+            if (iconFile.exists()) {
+                iconView.setImageBitmap(BitmapFactory.decodeFile(iconPath));
+            }
+        }
+
+        appView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    Intent intent = Intent.parseUri(intentUri, 0);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch (URISyntaxException e) {
+                    Log.e(TAG, "Invalid shortcut intent URI: " + intentUri, e);
+                }
+            }
+        });
+
         appLinearLayout.addView(appView);
     }
 
@@ -243,7 +290,12 @@ public class MainActivity extends Activity {
 
         iconView.setImageResource(R.drawable.ic_settings);
         nameView.setText(R.string.launcher_settings);
-        settingsAppView.setOnClickListener(v -> openSettingsActivity());
+        settingsAppView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openSettingsActivity();
+            }
+        });
         appLinearLayout.addView(settingsAppView);
     }
 

@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hamsterbase.burrowui"
-        minSdk = 24
+        minSdk = 19
         targetSdk = 34
         versionCode = 3
         versionName = "1.2.0"
