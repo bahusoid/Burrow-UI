@@ -1,0 +1,6 @@
+# Copy this file to signing.properties and update values for your own release key.
+# Paths are relative to project root.
+storeFile=keystore/release-temp.keystore
+storePassword=changeit123
+keyAlias=burrow-temp
+keyPassword=changeit123

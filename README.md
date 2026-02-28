@@ -16,6 +16,38 @@ Burrow UI is an open-source, free launcher designed specifically for E-ink devic
 
 Download the latest release of Burrow UI from the [Releases](https://github.com/hamsterbase/Burrow-UI/releases)
 
+## Build signed release APK (your own key)
+
+This project reads release signing credentials from `signing.properties` in the project root.
+
+1. Create a keystore (example):
+
+	```bash
+	keytool -genkeypair -v \
+	  -keystore keystore/my-release.keystore \
+	  -alias my-key-alias \
+	  -keyalg RSA -keysize 2048 -validity 3650
+	```
+
+2. Copy `signing.properties.example` to `signing.properties` and set your values:
+
+	```properties
+	storeFile=keystore/my-release.keystore
+	storePassword=YOUR_STORE_PASSWORD
+	keyAlias=my-key-alias
+	keyPassword=YOUR_KEY_PASSWORD
+	```
+
+3. Build release APK:
+
+	```bash
+	./gradlew :app:assembleRelease
+	```
+
+APK output path:
+
+`app/build/outputs/apk/release/burrow-ui-release-<version>.apk`
+
 ## Support Us
 
 If you find Burrow UI helpful, consider supporting our work:
