@@ -1,6 +1,7 @@
 package com.hamsterbase.burrowui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -217,7 +218,7 @@ public class MainActivity extends Activity {
             if (item.getType().equals("application")) {
                 for (AppInfo app : allApps) {
                     if (appManagementService.isSelectItemEqualWith(app, item)) {
-                        addAppToLayout(app);
+                        addAppToLayout(app, item);
                         break;
                     }
                 }
@@ -231,7 +232,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void addAppToLayout(AppInfo app) {
+    private void addAppToLayout(final AppInfo app, final SettingsManager.SelectedItem selectedItem) {
         View appView = getLayoutInflater().inflate(R.layout.app_item, null);
         ImageView iconView = appView.findViewById(R.id.appIcon);
         TextView nameView = appView.findViewById(R.id.appName);
@@ -242,6 +243,13 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 appManagementService.launchApp(app);
+            }
+        });
+        appView.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                showRemoveDialog(selectedItem, app.getLabel());
+                return true;
             }
         });
         appLinearLayout.addView(appView);
@@ -281,8 +289,29 @@ public class MainActivity extends Activity {
                 }
             }
         });
+        appView.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                showRemoveDialog(shortcutItem, name);
+                return true;
+            }
+        });
 
         appLinearLayout.addView(appView);
+    }
+
+    private void showRemoveDialog(final SettingsManager.SelectedItem selectedItem, String itemName) {
+        String message = getString(R.string.remove_from_main_screen, itemName);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.remove)
+                .setMessage(message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.remove, (dialog, which) -> {
+                    settingsManager.deleteSelectedItem(selectedItem);
+                    loadApps();
+                    displaySelectedApps();
+                })
+                .show();
     }
 
     private void addSettingsAppToLayout() {

@@ -99,6 +99,22 @@ public class SettingsManager {
         }
     }
 
+    public void deleteSelectedItem(SelectedItem targetItem) {
+        if (targetItem == null) {
+            return;
+        }
+
+        List<SelectedItem> items = getSelectedItems();
+        for (int i = 0; i < items.size(); i++) {
+            SelectedItem item = items.get(i);
+            if (item.getType().equals(targetItem.getType()) && item.getMeta().equals(targetItem.getMeta())) {
+                items.remove(i);
+                saveSelectedItems(items);
+                return;
+            }
+        }
+    }
+
     public void pushSelectedItem(SelectedItem item) {
         List<SelectedItem> items = getSelectedItems();
         items.add(item);
