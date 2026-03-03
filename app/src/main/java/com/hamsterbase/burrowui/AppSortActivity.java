@@ -56,16 +56,14 @@ public class AppSortActivity extends Activity implements NavigationBar.OnBackCli
         List<AppInfo> allApps = appManagementService.listApps();
         sortableItemList = new ArrayList<>();
         List<SettingsManager.SelectedItem> selectedItems = settingsManager.getSelectedItems();
-        for (int i = 0; i < selectedItems.size(); i++) {
-            SettingsManager.SelectedItem item = selectedItems.get(i);
-            if (item.getType().equals("application")) {
-                for (AppInfo app : allApps) {
-                    if (appManagementService.isSelectItemEqualWith(app, item)) {
-                        sortableItemList.add(new SortableItem(app.getLabel(), appManagementService.getIcon(app.getPackageName(), app.getUserId()), i));
-                        break;
-                    }
-                }
-            }
+        List<MainScreenItemMapper.MainScreenItem> mainScreenItems = MainScreenItemMapper.map(
+                selectedItems,
+                allApps,
+                appManagementService,
+                this
+        );
+        for (MainScreenItemMapper.MainScreenItem item : mainScreenItems) {
+            sortableItemList.add(new SortableItem(item.getLabel(), item.getIcon(), item.getOriginalIndex()));
         }
         if (appAdapter != null) {
             appAdapter.notifyDataSetChanged();

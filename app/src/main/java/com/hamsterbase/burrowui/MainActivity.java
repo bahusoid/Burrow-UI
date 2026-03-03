@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.graphics.BitmapFactory;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,14 +27,11 @@ import android.widget.TextView;
 import com.hamsterbase.burrowui.service.AppInfo;
 import com.hamsterbase.burrowui.service.AppManagementService;
 
-import java.io.File;
 import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class MainActivity extends Activity {
 
@@ -57,7 +53,6 @@ public class MainActivity extends Activity {
     private Runnable updateTimeRunnable;
     private BroadcastReceiver batteryReceiver;
     private String batteryText = "";
-    private final Map<String, AppInfo> appLookup = new HashMap<>();
     private SimpleDateFormat time24Format;
     private SimpleDateFormat time12Format;
     private SimpleDateFormat amPmFormat;
@@ -242,26 +237,21 @@ public class MainActivity extends Activity {
 
     private void loadApps() {
         allApps = appManagementService.listApps();
-        appLookup.clear();
-        for (AppInfo app : allApps) {
-            appLookup.put(buildAppKey(app.getPackageName(), app.getComponentName(), app.getUserId()), app);
-        }
         selectedItems = settingsManager.getSelectedItems();
     }
 
     private void displaySelectedApps() {
         appLinearLayout.removeAllViews();
-        for (SettingsManager.SelectedItem item : selectedItems) {
-            if (item.getType().equals("application")) {
-                Map<String, String> meta = item.getMeta();
-                String packageName = meta.get("packageName");
-                String componentName = meta.get("componentName");
-                String userId = normalizeUserId(meta.get("userId"));
-                AppInfo app = appLookup.get(buildAppKey(packageName, componentName, userId));
-                if (app != null) {
-                    addAppToLayout(app, item);
-                }
-            } else if (item.getType().equals("shortcut")) {
+        List<MainScreenItemMapper.MainScreenItem> mainScreenItems = MainScreenItemMapper.map(
+                selectedItems,
+                allApps,
+                appManagementService,
+                this
+        );
+        for (MainScreenItemMapper.MainScreenItem item : mainScreenItems) {
+            if (item.isApplication()) {
+                addAppToLayout(item);
+            } else if (item.isShortcut()) {
                 addShortcutToLayout(item);
             }
         }
@@ -271,13 +261,15 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void addAppToLayout(final AppInfo app, final SettingsManager.SelectedItem selectedItem) {
+    private void addAppToLayout(final MainScreenItemMapper.MainScreenItem item) {
         View appView = getLayoutInflater().inflate(R.layout.app_item, null);
         ImageView iconView = appView.findViewById(R.id.appIcon);
         TextView nameView = appView.findViewById(R.id.appName);
 
-        iconView.setImageDrawable(appManagementService.getIcon(app.getPackageName(), app.getUserId()));
-        nameView.setText(app.getLabel());
+        final AppInfo app = item.getApp();
+        final SettingsManager.SelectedItem selectedItem = item.getSelectedItem();
+        iconView.setImageDrawable(item.getIcon());
+        nameView.setText(item.getLabel());
         appView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -294,26 +286,17 @@ public class MainActivity extends Activity {
         appLinearLayout.addView(appView);
     }
 
-    private void addShortcutToLayout(final SettingsManager.SelectedItem shortcutItem) {
-        Map<String, String> meta = shortcutItem.getMeta();
-        final String name = meta.get("name");
-        final String intentUri = meta.get("intent");
-        String iconPath = meta.get("iconPath");
-
-        if (name == null || intentUri == null) {
-            return;
-        }
-
+    private void addShortcutToLayout(final MainScreenItemMapper.MainScreenItem item) {
+        final String name = item.getLabel();
+        final String intentUri = item.getShortcutIntentUri();
+        final SettingsManager.SelectedItem shortcutItem = item.getSelectedItem();
         View appView = getLayoutInflater().inflate(R.layout.app_item, null);
         ImageView iconView = appView.findViewById(R.id.appIcon);
         TextView nameView = appView.findViewById(R.id.appName);
 
         nameView.setText(name);
-        if (iconPath != null) {
-            File iconFile = new File(iconPath);
-            if (iconFile.exists()) {
-                iconView.setImageBitmap(BitmapFactory.decodeFile(iconPath));
-            }
+        if (item.getIcon() != null) {
+            iconView.setImageDrawable(item.getIcon());
         }
 
         appView.setOnClickListener(new View.OnClickListener() {
@@ -526,18 +509,4 @@ public class MainActivity extends Activity {
         lastRenderedAmPm = "";
     }
 
-    private static String normalizeUserId(String userId) {
-        if (userId == null || "null".equals(userId) || userId.isEmpty()) {
-            return null;
-        }
-        return userId;
-    }
-
-    private static String buildAppKey(String packageName, String componentName, String userId) {
-        return (packageName == null ? "" : packageName)
-                + "|"
-                + (componentName == null ? "" : componentName)
-                + "|"
-                + (userId == null ? "" : userId);
-    }
 }
