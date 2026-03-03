@@ -2,6 +2,7 @@ package com.hamsterbase.burrowui;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -25,9 +26,13 @@ import android.widget.TextView;
 import com.hamsterbase.burrowui.service.AppInfo;
 import com.hamsterbase.burrowui.service.AppManagementService;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class SearchActivity extends Activity {
 
@@ -38,9 +43,11 @@ public class SearchActivity extends Activity {
     private ImageButton clearButton;
     private ListView appListView;
     private List<AppInfo> allApps;
-    private List<AppInfo> filteredApps;
+    private List<SearchItem> allSearchItems;
+    private List<SearchItem> filteredSearchItems;
     private AppAdapter adapter;
     private AppManagementService appManagementService;
+    private SettingsManager settingsManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,9 +66,11 @@ public class SearchActivity extends Activity {
         appListView.setDividerHeight(0);
         appListView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         appManagementService = ((BurrowUIApplication) getApplication()).getAppManagementService();
+        settingsManager = new SettingsManager(this);
 
         allApps = appManagementService.listApps();
-        filteredApps = new ArrayList<>();
+        allSearchItems = buildSearchItems();
+        filteredSearchItems = new ArrayList<>();
         adapter = new AppAdapter();
         appListView.setAdapter(adapter);
 
@@ -120,8 +129,12 @@ public class SearchActivity extends Activity {
         appListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                AppInfo app = filteredApps.get(position);
-                appManagementService.launchApp(app);
+                SearchItem item = filteredSearchItems.get(position);
+                if (item.isShortcut()) {
+                    launchShortcut(item.getShortcutIntentUri());
+                } else {
+                    appManagementService.launchApp(item.getApp());
+                }
             }
         });
 
@@ -130,13 +143,48 @@ public class SearchActivity extends Activity {
 
 
     private void filterApps(String query) {
-        filteredApps.clear();
-        for (AppInfo app : allApps) {
-            if (app.getLabel().toLowerCase().contains(query.toLowerCase())) {
-                filteredApps.add(app);
+        filteredSearchItems.clear();
+        String normalizedQuery = query.toLowerCase(Locale.getDefault());
+        for (SearchItem item : allSearchItems) {
+            if (item.getLabel().toLowerCase(Locale.getDefault()).contains(normalizedQuery)) {
+                filteredSearchItems.add(item);
             }
         }
         adapter.notifyDataSetChanged();
+    }
+
+    private List<SearchItem> buildSearchItems() {
+        List<SearchItem> items = new ArrayList<>();
+        for (AppInfo app : allApps) {
+            items.add(SearchItem.forApp(app));
+        }
+
+        List<SettingsManager.SelectedItem> selectedItems = settingsManager.getSelectedItems();
+        for (SettingsManager.SelectedItem selectedItem : selectedItems) {
+            if (!"shortcut".equals(selectedItem.getType())) {
+                continue;
+            }
+
+            Map<String, String> meta = selectedItem.getMeta();
+            String name = meta.get("name");
+            String intentUri = meta.get("intent");
+            String iconPath = meta.get("iconPath");
+
+            if (name != null && intentUri != null) {
+                items.add(SearchItem.forShortcut(name, intentUri, iconPath));
+            }
+        }
+
+        return items;
+    }
+
+    private void launchShortcut(String intentUri) {
+        try {
+            Intent intent = Intent.parseUri(intentUri, 0);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (URISyntaxException ignored) {
+        }
     }
 
     private void updateClearButtonVisibility() {
@@ -156,12 +204,12 @@ public class SearchActivity extends Activity {
 
         @Override
         public int getCount() {
-            return filteredApps.size();
+            return filteredSearchItems.size();
         }
 
         @Override
         public Object getItem(int position) {
-            return filteredApps.get(position);
+            return filteredSearchItems.get(position);
         }
 
         @Override
@@ -182,11 +230,64 @@ public class SearchActivity extends Activity {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            AppInfo app = filteredApps.get(position);
-            holder.appName.setText(app.getLabel());
-            loadAppIcon(holder.appIcon, app);
+            SearchItem item = filteredSearchItems.get(position);
+            holder.appName.setText(item.getLabel());
+            if (item.isShortcut()) {
+                holder.appIcon.setImageDrawable(null);
+                String iconPath = item.getShortcutIconPath();
+                if (iconPath != null) {
+                    File iconFile = new File(iconPath);
+                    if (iconFile.exists()) {
+                        holder.appIcon.setImageBitmap(BitmapFactory.decodeFile(iconPath));
+                    }
+                }
+            } else {
+                loadAppIcon(holder.appIcon, item.getApp());
+            }
 
             return convertView;
+        }
+    }
+
+    private static class SearchItem {
+        private final AppInfo app;
+        private final String label;
+        private final String shortcutIntentUri;
+        private final String shortcutIconPath;
+
+        private SearchItem(AppInfo app, String label, String shortcutIntentUri, String shortcutIconPath) {
+            this.app = app;
+            this.label = label;
+            this.shortcutIntentUri = shortcutIntentUri;
+            this.shortcutIconPath = shortcutIconPath;
+        }
+
+        static SearchItem forApp(AppInfo app) {
+            return new SearchItem(app, app.getLabel(), null, null);
+        }
+
+        static SearchItem forShortcut(String label, String shortcutIntentUri, String shortcutIconPath) {
+            return new SearchItem(null, label, shortcutIntentUri, shortcutIconPath);
+        }
+
+        boolean isShortcut() {
+            return shortcutIntentUri != null;
+        }
+
+        AppInfo getApp() {
+            return app;
+        }
+
+        String getLabel() {
+            return label;
+        }
+
+        String getShortcutIntentUri() {
+            return shortcutIntentUri;
+        }
+
+        String getShortcutIconPath() {
+            return shortcutIconPath;
         }
     }
 
