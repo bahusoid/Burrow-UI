@@ -117,7 +117,11 @@ public class AppManagementService {
             return cachedIcon;
         }
 
-        return loadIcon(packageName, userId);
+        Drawable loadedIcon = loadIcon(packageName, userId);
+        if (loadedIcon != null) {
+            iconCache.put(cacheKey, loadedIcon);
+        }
+        return loadedIcon;
     }
 
     private Drawable loadIcon(String packageName, String userId) {
@@ -140,19 +144,9 @@ public class AppManagementService {
         if (userHandle == null) {
             return null;
         }
-        try {
-            if (iconCache.get(packageName) == null) {
-                iconCache.put(packageName, copyIcon(packageManager.getApplicationIcon(packageName)));
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            //
-        }
         List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, userHandle);
         if (!activities.isEmpty()) {
-            String cacheKey = packageName + ":" + userId;
-            Drawable icon = activities.get(0).getIcon(0);
-            iconCache.put(cacheKey, icon);
-            return icon;
+            return activities.get(0).getIcon(0);
         }
         return null;
     }
@@ -182,7 +176,7 @@ public class AppManagementService {
             if (app.getUserId() == null) {
                 return item.getMeta().get("userId") == null;
             } else {
-                return app.getUserId().equals(item.getMeta().get("packageName"));
+                return app.getUserId().equals(item.getMeta().get("userId"));
             }
         }
         return false;

@@ -28,7 +28,7 @@ import com.hamsterbase.burrowui.service.AppManagementService;
 import java.io.File;
 import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +49,14 @@ public class MainActivity extends Activity {
     private Runnable updateTimeRunnable;
     private BroadcastReceiver batteryReceiver;
     private String batteryText = "";
+    private final Map<String, AppInfo> appLookup = new HashMap<>();
+    private SimpleDateFormat time24Format;
+    private SimpleDateFormat time12Format;
+    private SimpleDateFormat amPmFormat;
+    private SimpleDateFormat dateFormat;
+    private String lastRenderedTime = "";
+    private String lastRenderedDate = "";
+    private String lastRenderedAmPm = "";
 
     private float touchStartY;
     private static final float SWIPE_THRESHOLD = 200;
@@ -84,11 +92,14 @@ public class MainActivity extends Activity {
         appManagementService = AppManagementService.getInstance(this);
 
         handler = new Handler(Looper.getMainLooper());
+        initTimeFormatters();
         updateTimeRunnable = new Runnable() {
             @Override
             public void run() {
                 updateTime();
-                handler.postDelayed(this, 1000); // Update every second
+                long now = System.currentTimeMillis();
+                long delayToNextMinute = 60000 - (now % 60000);
+                handler.postDelayed(this, delayToNextMinute + 50);
             }
         };
 
@@ -159,6 +170,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        initTimeFormatters();
         loadApps();
         displaySelectedApps();
         handler.post(updateTimeRunnable);
@@ -175,40 +187,57 @@ public class MainActivity extends Activity {
     }
 
     private void updateTime() {
+        Date now = new Date();
         if (settingsManager.isUse24HourFormat()) {
-            // 24-hour format
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
-            String currentTime = sdf.format(new Date());
-            timeTextView.setText(currentTime);
-            amPmTextView.setVisibility(View.GONE);
+            String currentTime = time24Format.format(now);
+            if (!currentTime.equals(lastRenderedTime)) {
+                timeTextView.setText(currentTime);
+                lastRenderedTime = currentTime;
+            }
+            if (amPmTextView.getVisibility() != View.GONE) {
+                amPmTextView.setVisibility(View.GONE);
+            }
         } else {
-            // 12-hour format
-            SimpleDateFormat sdf = new SimpleDateFormat("hh:mm", Locale.getDefault());
-            String currentTime = sdf.format(new Date());
-            timeTextView.setText(currentTime);
-            
-            // Get AM/PM separately using English locale to ensure "AM"/"PM" instead of "上午"/"下午"
-            SimpleDateFormat amPmSdf = new SimpleDateFormat("a", Locale.ENGLISH);
-            String amPm = amPmSdf.format(new Date());
-            amPmTextView.setText(amPm);
-            amPmTextView.setVisibility(View.VISIBLE);
+            String currentTime = time12Format.format(now);
+            if (!currentTime.equals(lastRenderedTime)) {
+                timeTextView.setText(currentTime);
+                lastRenderedTime = currentTime;
+            }
+
+            String amPm = amPmFormat.format(now);
+            if (!amPm.equals(lastRenderedAmPm)) {
+                amPmTextView.setText(amPm);
+                lastRenderedAmPm = amPm;
+            }
+            if (amPmTextView.getVisibility() != View.VISIBLE) {
+                amPmTextView.setVisibility(View.VISIBLE);
+            }
         }
-        
-        String dateFormat = settingsManager.getDateFormat();
-        SimpleDateFormat dateSdf = new SimpleDateFormat(dateFormat, Locale.ENGLISH);
-        String currentDate = dateSdf.format(new Date()).concat(batteryText);
-        dateTextView.setText(currentDate);
+
+        String currentDate = dateFormat.format(now).concat(batteryText);
+        if (!currentDate.equals(lastRenderedDate)) {
+            dateTextView.setText(currentDate);
+            lastRenderedDate = currentDate;
+        }
     }
 
     private void updateBatteryStatus(Intent intent) {
         int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
         int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
         float batteryPct = level * 100 / (float) scale;
-        batteryText = String.format(Locale.getDefault(), " %.0f%%", batteryPct);
+        String newBatteryText = String.format(Locale.getDefault(), " %.0f%%", batteryPct);
+        if (!newBatteryText.equals(batteryText)) {
+            batteryText = newBatteryText;
+            updateTime();
+        }
     }
 
     private void loadApps() {
         allApps = appManagementService.listApps();
+        appLookup.clear();
+        for (AppInfo app : allApps) {
+            appLookup.put(buildAppKey(app.getPackageName(), app.getComponentName(), app.getUserId()), app);
+        }
         selectedItems = settingsManager.getSelectedItems();
     }
 
@@ -216,11 +245,13 @@ public class MainActivity extends Activity {
         appLinearLayout.removeAllViews();
         for (SettingsManager.SelectedItem item : selectedItems) {
             if (item.getType().equals("application")) {
-                for (AppInfo app : allApps) {
-                    if (appManagementService.isSelectItemEqualWith(app, item)) {
-                        addAppToLayout(app, item);
-                        break;
-                    }
+                Map<String, String> meta = item.getMeta();
+                String packageName = meta.get("packageName");
+                String componentName = meta.get("componentName");
+                String userId = normalizeUserId(meta.get("userId"));
+                AppInfo app = appLookup.get(buildAppKey(packageName, componentName, userId));
+                if (app != null) {
+                    addAppToLayout(app, item);
                 }
             } else if (item.getType().equals("shortcut")) {
                 addShortcutToLayout(item);
@@ -338,5 +369,30 @@ public class MainActivity extends Activity {
     private void openSearchActivity() {
         Intent intent = new Intent(this, SearchActivity.class);
         startActivity(intent);
+    }
+
+    private void initTimeFormatters() {
+        time24Format = new SimpleDateFormat("HH:mm", Locale.getDefault());
+        time12Format = new SimpleDateFormat("hh:mm", Locale.getDefault());
+        amPmFormat = new SimpleDateFormat("a", Locale.ENGLISH);
+        dateFormat = new SimpleDateFormat(settingsManager.getDateFormat(), Locale.ENGLISH);
+        lastRenderedTime = "";
+        lastRenderedDate = "";
+        lastRenderedAmPm = "";
+    }
+
+    private static String normalizeUserId(String userId) {
+        if (userId == null || "null".equals(userId) || userId.isEmpty()) {
+            return null;
+        }
+        return userId;
+    }
+
+    private static String buildAppKey(String packageName, String componentName, String userId) {
+        return (packageName == null ? "" : packageName)
+                + "|"
+                + (componentName == null ? "" : componentName)
+                + "|"
+                + (userId == null ? "" : userId);
     }
 }
