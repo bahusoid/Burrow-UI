@@ -7,5 +7,6 @@
     <string name="launcher_settings">Launcher Settings</string>
     <string name="sort_apps">Sort apps</string>
     <string name="remove">Remove</string>
+    <string name="remove_icon">Remove Icon</string>
     <string name="remove_from_main_screen">Remove %1$s from main screen?</string>
 </resources>

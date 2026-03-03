@@ -279,7 +279,7 @@ public class MainActivity extends Activity {
         appView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                showRemoveDialog(selectedItem, app.getLabel());
+                showIconContextMenu(selectedItem, app.getLabel());
                 return true;
             }
         });
@@ -323,7 +323,7 @@ public class MainActivity extends Activity {
         appView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                showRemoveDialog(shortcutItem, name);
+                showIconContextMenu(shortcutItem, name);
                 return true;
             }
         });
@@ -341,6 +341,18 @@ public class MainActivity extends Activity {
                     settingsManager.deleteSelectedItem(selectedItem);
                     loadApps();
                     displaySelectedApps();
+                })
+                .show();
+    }
+
+    private void showIconContextMenu(final SettingsManager.SelectedItem selectedItem, String itemName) {
+        String[] options = new String[]{getString(R.string.remove_icon)};
+        new AlertDialog.Builder(this)
+                .setTitle(itemName)
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        showRemoveDialog(selectedItem, itemName);
+                    }
                 })
                 .show();
     }
