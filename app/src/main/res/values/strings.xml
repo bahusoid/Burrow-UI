@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Burrow UI</string>
+    <string name="app_selection">App Selection</string>
+    <string name="all">All</string>
     <string name="search_apps">Search apps</string>
     <string name="clear_search">Clear search</string>
     <string name="cancel">Cancel</string>
@@ -17,4 +19,8 @@
     <string name="move_to_bottom">Move to Bottom</string>
     <string name="close">Close</string>
     <string name="remove_from_main_screen">Remove %1$s from main screen?</string>
+    <string name="select_all_apps_title">Select all apps</string>
+    <string name="select_all_apps_message">Select all apps?</string>
+    <string name="deselect_all_apps_title">Deselect all apps</string>
+    <string name="deselect_all_apps_message">Deselect all apps?</string>
 </resources>

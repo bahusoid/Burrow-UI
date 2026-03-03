@@ -1,6 +1,7 @@
 package com.hamsterbase.burrowui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -18,6 +19,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -44,6 +46,7 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
     private List<AppInfo> filteredApps;
     private List<Integer> filteredAppIndexes;
     private ListView appListView;
+    private CheckBox selectAllCheckbox;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +67,8 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
         loadApps();
         appAdapter = new AppAdapter();
         appListView.setAdapter(appAdapter);
+        selectAllCheckbox = findViewById(R.id.selectAllCheckbox);
+        selectAllCheckbox.setOnClickListener(v -> onSelectAllClicked());
 
         EditText appSearchEditText = findViewById(R.id.appSearchEditText);
         ImageButton clearSearchButton = findViewById(R.id.clearSearchButton);
@@ -115,6 +120,7 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
         NavigationBar navigationBar = findViewById(R.id.navigation_bar);
         navigationBar.setListView(appListView);
         navigationBar.setOnBackClickListener(this);
+        updateSelectAllCheckboxState();
     }
 
     private void loadApps() {
@@ -125,6 +131,7 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
             selectedState.put(i, appManagementService.isAppSelected(allApps.get(i), selectedItems));
         }
         applyFilter("");
+        updateSelectAllCheckboxState();
     }
 
     private void applyFilter(String query) {
@@ -148,6 +155,59 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
 
     public void onBackClick() {
         finish();
+    }
+
+    private void onSelectAllClicked() {
+        boolean allSelected = areAllAppsSelected();
+        int titleRes = allSelected ? R.string.deselect_all_apps_title : R.string.select_all_apps_title;
+        int messageRes = allSelected ? R.string.deselect_all_apps_message : R.string.select_all_apps_message;
+        String positiveLabel = allSelected ? getString(R.string.remove) : getString(R.string.all);
+
+        new AlertDialog.Builder(this)
+                .setTitle(titleRes)
+                .setMessage(messageRes)
+                .setNegativeButton(R.string.cancel, (dialog, which) -> updateSelectAllCheckboxState())
+                .setPositiveButton(positiveLabel, (dialog, which) -> setAllAppsSelected(!allSelected))
+                .setOnCancelListener(dialog -> updateSelectAllCheckboxState())
+                .show();
+    }
+
+    private void setAllAppsSelected(boolean shouldSelect) {
+        for (int i = 0; i < allApps.size(); i++) {
+            boolean current = selectedState.get(i);
+            if (current == shouldSelect) {
+                continue;
+            }
+
+            AppInfo app = allApps.get(i);
+            if (shouldSelect) {
+                addSelectedApp(app);
+            } else {
+                removeSelectedApp(app);
+            }
+            selectedState.put(i, shouldSelect);
+        }
+
+        appAdapter.notifyDataSetChanged();
+        updateSelectAllCheckboxState();
+    }
+
+    private boolean areAllAppsSelected() {
+        if (allApps.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < allApps.size(); i++) {
+            if (!selectedState.get(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateSelectAllCheckboxState() {
+        if (selectAllCheckbox != null) {
+            selectAllCheckbox.setChecked(areAllAppsSelected());
+        }
     }
 
     private class AppAdapter extends BaseAdapter {
@@ -206,6 +266,7 @@ public class AppSelectionActivity extends Activity implements NavigationBar.OnBa
                         removeSelectedApp(app);
                     }
                     updateCheckImage(holder.appCheckImage, newState);
+                    updateSelectAllCheckboxState();
                     notifyDataSetChanged();
                 }
             });
