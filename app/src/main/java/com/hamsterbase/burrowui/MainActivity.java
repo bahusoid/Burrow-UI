@@ -12,13 +12,16 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.util.Log;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -35,6 +38,11 @@ import java.util.Locale;
 import java.util.Map;
 
 public class MainActivity extends Activity {
+
+    private static final int MOVE_TOP = 0;
+    private static final int MOVE_UP = 1;
+    private static final int MOVE_DOWN = 2;
+    private static final int MOVE_BOTTOM = 3;
 
     private static final String TAG = "MainActivity";
     private TextView timeTextView;
@@ -346,15 +354,140 @@ public class MainActivity extends Activity {
     }
 
     private void showIconContextMenu(final SettingsManager.SelectedItem selectedItem, String itemName) {
-        String[] options = new String[]{getString(R.string.remove_icon)};
+        String[] options = new String[]{
+                getString(R.string.move),
+                getString(R.string.remove_icon)
+        };
         new AlertDialog.Builder(this)
                 .setTitle(itemName)
                 .setItems(options, (dialog, which) -> {
                     if (which == 0) {
+                        showMoveDialog(selectedItem, itemName);
+                    } else if (which == 1) {
                         showRemoveDialog(selectedItem, itemName);
                     }
                 })
                 .show();
+    }
+
+    private void showMoveDialog(final SettingsManager.SelectedItem selectedItem, String itemName) {
+        final int originalIndex = findSelectedItemIndex(selectedItem);
+        if (originalIndex == -1) {
+            return;
+        }
+
+        final String[] options = new String[]{
+                getString(R.string.move_to_top),
+                getString(R.string.move_up),
+                getString(R.string.move_down),
+                getString(R.string.move_to_bottom),
+                getString(R.string.cancel),
+                getString(R.string.close)
+        };
+
+        ListView listView = new ListView(this);
+        listView.setBackgroundColor(getResources().getColor(R.color.white));
+        listView.setDivider(getResources().getDrawable(android.R.color.black));
+        listView.setDividerHeight(1);
+        listView.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, options) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView textView = view.findViewById(android.R.id.text1);
+                if (textView != null) {
+                    textView.setTextColor(getResources().getColor(R.color.black));
+                    textView.setBackgroundColor(getResources().getColor(R.color.white));
+                }
+                return view;
+            }
+        });
+
+        AlertDialog moveDialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.move_icon) + ": " + itemName)
+                .setView(listView)
+                .setCancelable(false)
+                .create();
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            if (position == 0) {
+                moveSelectedItem(selectedItem, MOVE_TOP);
+            } else if (position == 1) {
+                moveSelectedItem(selectedItem, MOVE_UP);
+            } else if (position == 2) {
+                moveSelectedItem(selectedItem, MOVE_DOWN);
+            } else if (position == 3) {
+                moveSelectedItem(selectedItem, MOVE_BOTTOM);
+            } else if (position == 4) {
+                restoreSelectedItemPosition(selectedItem, originalIndex);
+                moveDialog.dismiss();
+            } else if (position == 5) {
+                moveDialog.dismiss();
+            }
+        });
+
+        moveDialog.setCanceledOnTouchOutside(false);
+        moveDialog.show();
+        if (moveDialog.getWindow() != null) {
+            moveDialog.getWindow().setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            float density = getResources().getDisplayMetrics().density;
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int minWidth = (int) (220 * density);
+            int maxWidth = (int) (320 * density);
+            int scaledWidth = (int) (screenWidth * 0.45f);
+            int dialogWidth = Math.max(minWidth, Math.min(maxWidth, scaledWidth));
+            moveDialog.getWindow().setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void restoreSelectedItemPosition(SettingsManager.SelectedItem selectedItem, int originalIndex) {
+        int currentIndex = findSelectedItemIndex(selectedItem);
+        if (currentIndex == -1) {
+            return;
+        }
+
+        int itemCount = settingsManager.getSelectedItems().size();
+        int targetIndex = Math.max(0, Math.min(originalIndex, itemCount - 1));
+        if (currentIndex != targetIndex) {
+            settingsManager.moveSelectedItem(currentIndex, targetIndex);
+            loadApps();
+            displaySelectedApps();
+        }
+    }
+
+    private void moveSelectedItem(SettingsManager.SelectedItem selectedItem, int action) {
+        int currentIndex = findSelectedItemIndex(selectedItem);
+        if (currentIndex == -1) {
+            return;
+        }
+
+        int itemCount = settingsManager.getSelectedItems().size();
+        int targetIndex = currentIndex;
+        if (action == MOVE_TOP) {
+            targetIndex = 0;
+        } else if (action == MOVE_UP) {
+            targetIndex = Math.max(0, currentIndex - 1);
+        } else if (action == MOVE_DOWN) {
+            targetIndex = Math.min(itemCount - 1, currentIndex + 1);
+        } else if (action == MOVE_BOTTOM) {
+            targetIndex = itemCount - 1;
+        }
+
+        if (targetIndex != currentIndex) {
+            settingsManager.moveSelectedItem(currentIndex, targetIndex);
+            loadApps();
+            displaySelectedApps();
+        }
+    }
+
+    private int findSelectedItemIndex(SettingsManager.SelectedItem targetItem) {
+        List<SettingsManager.SelectedItem> items = settingsManager.getSelectedItems();
+        for (int i = 0; i < items.size(); i++) {
+            SettingsManager.SelectedItem item = items.get(i);
+            if (item.getType().equals(targetItem.getType()) && item.getMeta().equals(targetItem.getMeta())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void addSettingsAppToLayout() {

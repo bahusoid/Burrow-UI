@@ -131,6 +131,20 @@ public class SettingsManager {
         }
     }
 
+    public void moveSelectedItem(int fromIndex, int toIndex) {
+        List<SelectedItem> items = getSelectedItems();
+        if (fromIndex < 0 || fromIndex >= items.size() || toIndex < 0 || toIndex >= items.size()) {
+            return;
+        }
+        if (fromIndex == toIndex) {
+            return;
+        }
+
+        SelectedItem item = items.remove(fromIndex);
+        items.add(toIndex, item);
+        saveSelectedItems(items);
+    }
+
     public boolean isEnablePullDownSearch() {
         return sharedPreferences.getBoolean(ENABLE_PULL_DOWN_SEARCH_KEY, true);
     }
