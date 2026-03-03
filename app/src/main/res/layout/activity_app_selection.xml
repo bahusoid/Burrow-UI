@@ -21,6 +21,42 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/appSearchEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:hint="@string/search_apps"
+                android:singleLine="true"
+                android:imeOptions="actionDone" />
+
+            <ImageButton
+                android:id="@+id/clearSearchButton"
+                android:layout_width="64dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="12dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:scaleType="centerInside"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:contentDescription="@string/clear_search"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
         <ListView
             android:id="@+id/appListView"
             android:layout_width="match_parent"
