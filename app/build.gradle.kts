@@ -31,6 +31,11 @@ android {
         versionCode = 3
         versionName = "1.2.0"
 
+        vectorDrawables {
+            generatedDensities?.clear()
+            generatedDensities?.addAll(listOf("mdpi", "hdpi", "xhdpi", "xxhdpi"))
+        }
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
