@@ -29,9 +29,12 @@ import com.hamsterbase.burrowui.service.AppManagementService;
 
 import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
 
@@ -60,6 +63,11 @@ public class MainActivity extends Activity {
     private String lastRenderedTime = "";
     private String lastRenderedDate = "";
     private String lastRenderedAmPm = "";
+    private AlertDialog moveDialog;
+    private ListView moveDialogListView;
+    private SettingsManager.SelectedItem moveSessionCurrentItem;
+    private List<SettingsManager.SelectedItem> moveSessionOriginalItems;
+    private boolean isMoveSessionActive = false;
 
     private float touchStartY;
     private static final float SWIPE_THRESHOLD = 200;
@@ -273,7 +281,11 @@ public class MainActivity extends Activity {
         appView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                appManagementService.launchApp(app);
+                if (isMoveSessionActive) {
+                    setMoveSessionCurrentItem(selectedItem, app.getLabel());
+                } else {
+                    appManagementService.launchApp(app);
+                }
             }
         });
         appView.setOnLongClickListener(new View.OnLongClickListener() {
@@ -302,12 +314,16 @@ public class MainActivity extends Activity {
         appView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                try {
-                    Intent intent = Intent.parseUri(intentUri, 0);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch (URISyntaxException e) {
-                    Log.e(TAG, "Invalid shortcut intent URI: " + intentUri, e);
+                if (isMoveSessionActive) {
+                    setMoveSessionCurrentItem(shortcutItem, name);
+                } else {
+                    try {
+                        Intent intent = Intent.parseUri(intentUri, 0);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (URISyntaxException e) {
+                        Log.e(TAG, "Invalid shortcut intent URI: " + intentUri, e);
+                    }
                 }
             }
         });
@@ -354,10 +370,18 @@ public class MainActivity extends Activity {
     }
 
     private void showMoveDialog(final SettingsManager.SelectedItem selectedItem, String itemName) {
-        final int originalIndex = findSelectedItemIndex(selectedItem);
-        if (originalIndex == -1) {
+        if (findSelectedItemIndex(selectedItem) == -1) {
             return;
         }
+
+        if (isMoveSessionActive && moveDialog != null && moveDialog.isShowing()) {
+            setMoveSessionCurrentItem(selectedItem, itemName);
+            return;
+        }
+
+        moveSessionOriginalItems = copySelectedItems(settingsManager.getSelectedItems());
+        moveSessionCurrentItem = selectedItem;
+        isMoveSessionActive = true;
 
         final String[] options = new String[]{
                 getString(R.string.move_to_top),
@@ -368,11 +392,11 @@ public class MainActivity extends Activity {
                 getString(R.string.close)
         };
 
-        ListView listView = new ListView(this);
-        listView.setBackgroundColor(getResources().getColor(R.color.white));
-        listView.setDivider(getResources().getDrawable(android.R.color.black));
-        listView.setDividerHeight(1);
-        listView.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, options) {
+        moveDialogListView = new ListView(this);
+        moveDialogListView.setBackgroundColor(getResources().getColor(R.color.white));
+        moveDialogListView.setDivider(getResources().getDrawable(android.R.color.black));
+        moveDialogListView.setDividerHeight(1);
+        moveDialogListView.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, options) {
             @Override
             public View getView(int position, View convertView, android.view.ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
@@ -385,32 +409,39 @@ public class MainActivity extends Activity {
             }
         });
 
-        AlertDialog moveDialog = new AlertDialog.Builder(this)
+        moveDialog = new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.move_icon) + ": " + itemName)
-                .setView(listView)
+                .setView(moveDialogListView)
                 .setCancelable(false)
                 .create();
 
-        listView.setOnItemClickListener((parent, view, position, id) -> {
+        moveDialogListView.setOnItemClickListener((parent, view, position, id) -> {
+            SettingsManager.SelectedItem currentItem = moveSessionCurrentItem;
+            if (currentItem == null) {
+                return;
+            }
             if (position == 0) {
-                moveSelectedItem(selectedItem, MOVE_TOP);
+                moveSelectedItem(currentItem, MOVE_TOP);
             } else if (position == 1) {
-                moveSelectedItem(selectedItem, MOVE_UP);
+                moveSelectedItem(currentItem, MOVE_UP);
             } else if (position == 2) {
-                moveSelectedItem(selectedItem, MOVE_DOWN);
+                moveSelectedItem(currentItem, MOVE_DOWN);
             } else if (position == 3) {
-                moveSelectedItem(selectedItem, MOVE_BOTTOM);
+                moveSelectedItem(currentItem, MOVE_BOTTOM);
             } else if (position == 4) {
-                restoreSelectedItemPosition(selectedItem, originalIndex);
-                moveDialog.dismiss();
+                cancelMoveSession();
             } else if (position == 5) {
-                moveDialog.dismiss();
+                endMoveSession();
             }
         });
 
         moveDialog.setCanceledOnTouchOutside(false);
         moveDialog.show();
         if (moveDialog.getWindow() != null) {
+            moveDialog.getWindow().setFlags(
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            );
             moveDialog.getWindow().setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
             float density = getResources().getDisplayMetrics().density;
             int screenWidth = getResources().getDisplayMetrics().widthPixels;
@@ -419,21 +450,6 @@ public class MainActivity extends Activity {
             int scaledWidth = (int) (screenWidth * 0.45f);
             int dialogWidth = Math.max(minWidth, Math.min(maxWidth, scaledWidth));
             moveDialog.getWindow().setLayout(dialogWidth, WindowManager.LayoutParams.WRAP_CONTENT);
-        }
-    }
-
-    private void restoreSelectedItemPosition(SettingsManager.SelectedItem selectedItem, int originalIndex) {
-        int currentIndex = findSelectedItemIndex(selectedItem);
-        if (currentIndex == -1) {
-            return;
-        }
-
-        int itemCount = settingsManager.getSelectedItems().size();
-        int targetIndex = Math.max(0, Math.min(originalIndex, itemCount - 1));
-        if (currentIndex != targetIndex) {
-            settingsManager.moveSelectedItem(currentIndex, targetIndex);
-            loadApps();
-            displaySelectedApps();
         }
     }
 
@@ -460,6 +476,43 @@ public class MainActivity extends Activity {
             loadApps();
             displaySelectedApps();
         }
+    }
+
+    private void setMoveSessionCurrentItem(SettingsManager.SelectedItem selectedItem, String itemName) {
+        if (!isMoveSessionActive || moveDialog == null || !moveDialog.isShowing()) {
+            return;
+        }
+        moveSessionCurrentItem = selectedItem;
+        moveDialog.setTitle(getString(R.string.move_icon) + ": " + itemName);
+    }
+
+    private void cancelMoveSession() {
+        if (moveSessionOriginalItems != null) {
+            settingsManager.setSelectedItems(copySelectedItems(moveSessionOriginalItems));
+            loadApps();
+            displaySelectedApps();
+        }
+        endMoveSession();
+    }
+
+    private void endMoveSession() {
+        isMoveSessionActive = false;
+        moveSessionCurrentItem = null;
+        moveSessionOriginalItems = null;
+        moveDialogListView = null;
+        if (moveDialog != null && moveDialog.isShowing()) {
+            moveDialog.dismiss();
+        }
+        moveDialog = null;
+    }
+
+    private List<SettingsManager.SelectedItem> copySelectedItems(List<SettingsManager.SelectedItem> items) {
+        List<SettingsManager.SelectedItem> copiedItems = new ArrayList<>();
+        for (SettingsManager.SelectedItem item : items) {
+            Map<String, String> metaCopy = new HashMap<>(item.getMeta());
+            copiedItems.add(new SettingsManager.SelectedItem(item.getType(), metaCopy));
+        }
+        return copiedItems;
     }
 
     private int findSelectedItemIndex(SettingsManager.SelectedItem targetItem) {

@@ -121,6 +121,10 @@ public class SettingsManager {
         saveSelectedItems(items);
     }
 
+    public void setSelectedItems(List<SelectedItem> items) {
+        saveSelectedItems(items);
+    }
+
     public void swapSelectedItems(int index1, int index2) {
         List<SelectedItem> items = getSelectedItems();
         if (index1 >= 0 && index1 < items.size() && index2 >= 0 && index2 < items.size()) {
