@@ -28,8 +28,8 @@ android {
         applicationId = "com.hamsterbase.burrowui"
         minSdk = 19
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 301
+        versionName = "1.2.0-legacy.1"
 
         vectorDrawables {
             generatedDensities?.clear()

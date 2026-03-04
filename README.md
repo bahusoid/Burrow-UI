@@ -1,20 +1,24 @@
-# Burrow UI
+# Old Burrow UI
 
 ![](home.png)
 
-Burrow UI is an open-source, free launcher designed specifically for E-ink devices. Inspired by the Niagara Launcher, Burrow UI offers a minimalist and efficient interface tailored for E-ink screens.
+Old Burrow UI is an open-source, free launcher designed specifically for E-ink devices.
 
-## Features
+Based on the original project: [https://github.com/hamsterbase/Burrow-UI](https://github.com/hamsterbase/Burrow-UI)
 
-- **Open Source and Free**: Burrow UI is completely open-source and free to use, with no hidden costs or in-app purchases.
-- **No Ads**: Enjoy a clean, distraction-free experience without any advertisements.
-- **Offline Functionality**: Works entirely offline, respecting your privacy and conserving battery life.
-- **Ultra-Lightweight**: With an installation package of only 130KB, Burrow UI is incredibly light on system resources.
-- **E-ink Optimized**: Designed from the ground up for E-ink displays, ensuring optimal readability and performance.
+This mod targets older Android 4.4 devices and includes additional compatibility-focused improvements. Tested on NOOK GlowLight Plus (BNRV510).
 
 ## Installation
 
-Download the latest release of Burrow UI from the [Releases](https://github.com/hamsterbase/Burrow-UI/releases)
+Download the latest release of Old Burrow UI from the [Releases](https://github.com/bahusoid/Burrow-UI/releases)
+
+### Mod changes
+
+- Android 4.4 (API 19) support.
+- Launcher shortcut pinning support (including legacy shortcut install handling).
+- New main-screen icon management feature: long-press context menu with Move and Remove actions.
+- New main-screen Move functionality: move to top/up/down/bottom, switch moving target by tapping another icon while Move dialog is open, and full-order restore on Cancel.
+- App Selection improvements: select-all control and search.
 
 ## Build signed release APK (your own key)
 
@@ -48,28 +52,17 @@ APK output path:
 
 `app/build/outputs/apk/release/burrow-ui-release-<version>.apk`
 
-## Support Us
+### Mod Versioning
 
-If you find Burrow UI helpful, consider supporting our work:
-
-[Buy us a coffee](https://buymeacoffee.com/hamsterbase)
-
-## Our Other Products
-
-Check out our other innovative products:
-
-- [HamsterBase](https://hamsterbase.com) - A privacy-focused and offline-friendly tool for deferred reading.
+- Uses a legacy suffix in `versionName` (example: `1.2.0-legacy.1`).
+- Uses a fork-safe increasing `versionCode` formula: `upstreamCode * 100 + forkPatch`.
+- Current release: `versionName=1.2.0-legacy.1`, `versionCode=301`.
+- Example next versions: `1.2.0-legacy.2` -> `302`, `1.2.1-legacy.1` -> `401`.
 
 ## License
 
 Distributed under the GNU General Public License v3.0 (GPL-3.0) License. See `LICENSE` for more information.
 
-## Contact
-
-HamsterBase - admin@hamsterbase.com
-
-Project Link: [https://github.com/hamsterbase/burrow-ui](https://github.com/hamsterbase/burrow-ui)
-
 ## Acknowledgements
-
+- Original project: [https://github.com/hamsterbase/Burrow-UI](https://github.com/hamsterbase/Burrow-UI)
 - Inspired by Niagara Launcher
